@@ -1,0 +1,142 @@
+// AI Running Route Planner — data model
+// Route geometry is stored as GeoJSON (Json) for simplicity with Prisma.
+// The Facility table additionally gets a real PostGIS `geography(Point,4326)`
+// column + GiST index via prisma/postgis.sql (run once after your first
+// migration), and nearby-facility lookups use ST_DWithin
+// (see src/lib/facilities.ts -> findNearbyFacilitiesInDb).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  name      String?
+  email     String?   @unique
+  createdAt DateTime  @default(now())
+
+  runs        Run[]
+  preferences PreferenceProfile?
+}
+
+model PreferenceProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id])
+  // running tallies used to derive "you usually prefer" learning
+  terrainCounts      Json     @default("{}")
+  environmentCounts  Json     @default("{}")
+  trafficCounts      Json     @default("{}")
+  safetyCounts       Json     @default("{}")
+  sceneryCounts      Json     @default("{}")
+  hydrationCounts    Json     @default("{}")
+  toiletCounts       Json     @default("{}")
+  shadeCounts        Json     @default("{}")
+  timingCounts       Json     @default("{}")
+  totalRunsCompleted Int      @default(0)
+  updatedAt          DateTime @updatedAt
+}
+
+model Run {
+  id               String   @id @default(cuid())
+  userId           String?
+  user             User?    @relation(fields: [userId], references: [id])
+  createdAt        DateTime @default(now())
+
+  // Location setup
+  startLat         Float
+  startLng         Float
+  startLabel       String?
+  locationFamiliarity String // "familiar" | "new" | "no_preference"
+
+  // Create Run
+  distanceKm       Float
+  routeType        String // "loop" | "point_to_point"
+
+  // Preference snapshot (fixed dropdowns/multi-select only, no free text)
+  terrain          String
+  environment      Json     // string[]
+  traffic          String
+  safety           String
+  scenery          String
+  hydration        String
+  toilet           String
+  shade            String
+  timing           String
+
+  routeOptions     RouteOption[]
+}
+
+model RouteOption {
+  id                  String   @id @default(cuid())
+  runId               String
+  run                 Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  createdAt           DateTime @default(now())
+
+  name                String
+  geojson             Json    // GeoJSON LineString feature
+  distanceKm          Float
+  estimatedDurationMin Int
+  routeType           String
+
+  elevationGainM      Float
+  highestPointM        Float
+  maxInclinePct       Float
+  difficulty          String // "easy" | "moderate" | "hard"
+
+  safetyScore         Int
+  sceneryScore        Int
+  trafficScore        Int
+  convenienceScore    Int
+  shadeScore          Int
+  weatherProtectionScore Int
+  overallScore        Int
+
+  hydrationPoints     Json // [{ km, name, lat, lng }]
+  toiletPoints        Json
+  shelterPoints       Json
+
+  weatherSummary      Json  // { rainProbability, tempC, heatWarning, rainWarning }
+  explanation         String @db.Text
+  recommendation      String? @db.Text
+
+  isSelected          Boolean @default(false)
+
+  runSessions         RunSession[]
+}
+
+model RunSession {
+  id                  String   @id @default(cuid())
+  routeOptionId       String
+  routeOption         RouteOption @relation(fields: [routeOptionId], references: [id], onDelete: Cascade)
+
+  status              String   @default("in_progress") // in_progress | completed | abandoned
+  startedAt           DateTime @default(now())
+  completedAt         DateTime?
+
+  distanceCompletedKm Float    @default(0)
+  avgPaceMinPerKm     Float?
+  elapsedSeconds      Int      @default(0)
+  track               Json     @default("[]") // [{ lat, lng, t, distanceKm }]
+}
+
+model Facility {
+  id        String   @id @default(cuid())
+  type      String   // "hydration" | "toilet" | "shelter"
+  subtype   String?  // e.g. "drinking_water", "mall", "mrt_station"
+  name      String?
+  lat       Float
+  lng       Float
+  source    String   @default("overpass") // "overpass" | "seed"
+  createdAt DateTime @default(now())
+
+  // NOTE: a real `geom geography(Point,4326)` column + GiST index is added
+  // by prisma/postgis.sql and is queried via raw SQL (ST_DWithin) in
+  // src/lib/facilities.ts — Prisma's client does not model PostGIS types
+  // directly.
+}
