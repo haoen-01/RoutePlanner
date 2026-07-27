@@ -39,7 +39,14 @@ export function RouteCard({
               </Badge>
             )}
           </CardTitle>
-          <Badge variant="outline">Overall {route.overallScore}</Badge>
+          <div className="flex items-center gap-1.5">
+            {route.source === "synthetic" && (
+              <Badge variant="outline" className="border-amber-400 text-amber-600" title="External routing was unavailable for this option — its shape is estimated and may not follow real roads.">
+                Estimated shape
+              </Badge>
+            )}
+            <Badge variant="outline">Overall {route.overallScore}</Badge>
+          </div>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1"><RouteIcon className="h-3.5 w-3.5" /> {formatKm(route.distanceKm)}</span>

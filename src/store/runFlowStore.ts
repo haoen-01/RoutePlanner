@@ -21,6 +21,9 @@ interface RunFlowState {
   locationFamiliarity: LocationFamiliarity;
   distanceKm: number;
   routeType: RouteType;
+  endLat: number | null;
+  endLng: number | null;
+  endLabel: string;
   preferences: RunPreferences;
 
   runId: string | null;
@@ -31,6 +34,7 @@ interface RunFlowState {
   setFamiliarity: (f: LocationFamiliarity) => void;
   setDistanceKm: (km: number) => void;
   setRouteType: (t: RouteType) => void;
+  setEndLocation: (lat: number | null, lng: number | null, label?: string) => void;
   setPreferences: (p: Partial<RunPreferences>) => void;
   toggleEnvironment: (env: RunPreferences["environment"][number]) => void;
   setGenerated: (runId: string, routes: any[]) => void;
@@ -46,6 +50,9 @@ export const useRunFlowStore = create<RunFlowState>((set, get) => ({
   locationFamiliarity: "no_preference",
   distanceKm: 5,
   routeType: "loop",
+  endLat: null,
+  endLng: null,
+  endLabel: "Let the AI choose",
   preferences: DEFAULT_PREFERENCES,
 
   runId: null,
@@ -55,7 +62,8 @@ export const useRunFlowStore = create<RunFlowState>((set, get) => ({
   setLocation: (lat, lng, label) => set({ startLat: lat, startLng: lng, startLabel: label }),
   setFamiliarity: (locationFamiliarity) => set({ locationFamiliarity }),
   setDistanceKm: (distanceKm) => set({ distanceKm }),
-  setRouteType: (routeType) => set({ routeType }),
+  setRouteType: (routeType) => set(routeType === "loop" ? { routeType, endLat: null, endLng: null, endLabel: "Let the AI choose" } : { routeType }),
+  setEndLocation: (endLat, endLng, endLabel = "Custom destination") => set({ endLat, endLng, endLabel: endLat == null ? "Let the AI choose" : endLabel }),
   setPreferences: (p) => set((s) => ({ preferences: { ...s.preferences, ...p } })),
   toggleEnvironment: (env) =>
     set((s) => {
@@ -78,6 +86,9 @@ export const useRunFlowStore = create<RunFlowState>((set, get) => ({
       locationFamiliarity: s.locationFamiliarity,
       distanceKm: s.distanceKm,
       routeType: s.routeType,
+      ...(s.routeType === "point_to_point" && s.endLat != null && s.endLng != null
+        ? { endLat: s.endLat, endLng: s.endLng, endLabel: s.endLabel }
+        : {}),
       preferences: s.preferences,
     };
   },

@@ -1,16 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { generateRouteCandidates } from "@/lib/routing";
 import type { CreateRunRequest } from "@/lib/types";
 import { DEMO_USER_ID } from "@/lib/preferences";
 
+const createRunSchema = z.object({
+  startLat: z.number().min(-90).max(90),
+  startLng: z.number().min(-180).max(180),
+  startLabel: z.string().max(120).optional(),
+  locationFamiliarity: z.enum(["familiar", "new", "no_preference"]),
+  distanceKm: z.number().positive().max(100),
+  routeType: z.enum(["loop", "point_to_point"]),
+  endLat: z.number().min(-90).max(90).optional(),
+  endLng: z.number().min(-180).max(180).optional(),
+  endLabel: z.string().max(120).optional(),
+  userId: z.string().max(64).optional(),
+  preferences: z.object({
+    terrain: z.enum(["flat", "slightly_hilly", "hilly"]),
+    environment: z.array(z.enum(["nature_parks", "waterfront", "city_streets", "landmarks", "running_paths"])),
+    traffic: z.enum(["avoid", "balanced", "fastest"]),
+    safety: z.enum(["lowest", "balanced", "prioritise"]),
+    scenery: z.enum(["scenery", "balanced", "efficiency"]),
+    hydration: z.enum(["not_required", "some", "frequent"]),
+    toilet: z.enum(["not_required", "some", "frequent"]),
+    shade: z.enum(["no_preference", "some", "prioritise"]),
+    timing: z.enum(["morning", "afternoon", "evening", "night"]),
+  }),
+});
+
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as CreateRunRequest;
-
-    if (!body || typeof body.startLat !== "number" || typeof body.startLng !== "number" || !body.distanceKm || !body.routeType || !body.preferences) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    const parsed = createRunSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid request", details: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
+    const body = parsed.data as CreateRunRequest;
 
     const candidates = await generateRouteCandidates(body);
 
@@ -41,6 +66,7 @@ export async function POST(req: NextRequest) {
           create: candidates.map((c) => ({
             name: c.name,
             geojson: c.geojson as any,
+            source: c.source,
             distanceKm: c.distanceKm,
             estimatedDurationMin: c.estimatedDurationMin,
             routeType: c.routeType,

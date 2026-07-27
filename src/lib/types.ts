@@ -34,6 +34,10 @@ export interface CreateRunRequest {
   locationFamiliarity: LocationFamiliarity;
   distanceKm: number;
   routeType: RouteType;
+  // Optional destination for point-to-point routes. Omitted = planner picks.
+  endLat?: number;
+  endLng?: number;
+  endLabel?: string;
   preferences: RunPreferences;
   userId?: string;
 }
@@ -88,4 +92,6 @@ export interface RouteCandidate {
   explanation: string;
   recommendation: string | null;
   source: "openrouteservice" | "synthetic";
+  /** Whether scoring attributes came from real OSM data or theme fallback. */
+  attributeSource?: "osm" | "theme";
 }

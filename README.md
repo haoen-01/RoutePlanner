@@ -10,7 +10,9 @@ Built per the product spec in `hacks.md`: route intelligence first, tracker seco
 - **DB:** PostgreSQL + PostGIS (via Docker Compose), Prisma ORM
 - **Maps:** Leaflet + OpenStreetMap tiles (no API key required)
 - **Routing:** OpenRouteService if you provide a free API key, otherwise a deterministic synthetic geometric route generator (so the app works with zero external keys)
-- **Facilities:** OpenStreetMap Overpass API (hydration/toilets/shelter), with a PostGIS `ST_DWithin` fallback against seeded data
+- **Route intelligence:** real OSM corridor data via Overpass (roads, parks, water, trees, lighting, amenities) drives per-route traffic/scenery/shade/safety attributes — one cached query per generation; hard-coded theme values remain only as an offline fallback
+- **Explanations:** real Claude API explanations if `ANTHROPIC_API_KEY` is set, template-based fallback otherwise
+- **Facilities:** OpenStreetMap Overpass API (hydration/toilets/shelter), with a PostGIS `ST_DWithin` fallback against seeded data — honest empty states, no fabricated markers
 - **Weather:** Open-Meteo (free, no key)
 - **Elevation:** Open-Elevation (free, no key), with a synthetic fallback shaped by your terrain preference if unreachable
 
@@ -22,23 +24,27 @@ docker compose up -d          # starts Postgres+PostGIS on localhost:5432
 cp .env.example .env          # defaults already match docker-compose.yml
 npx prisma migrate dev --name init
 psql "$DATABASE_URL" -f prisma/postgis.sql   # enables PostGIS + spatial index
+# on Windows (no psql installed): docker compose exec db psql -U runner -d route_planner -f - < prisma/postgis.sql
 npm run db:seed               # seeds a handful of demo facilities (Singapore)
 npm run dev
 ```
 
 Open http://localhost:3000. No API keys are required for a full working demo — Mapbox/ORS/weather/elevation calls all have graceful fallbacks.
 
-To unlock real road-snapped routing, add a free [OpenRouteService](https://openrouteservice.org/dev/#/signup) key to `.env` as `ORS_API_KEY`.
+To unlock real road-snapped routing, add a free [OpenRouteService](https://openrouteservice.org/dev/#/signup) key to `.env` as `ORS_API_KEY`. To get real LLM-generated route explanations, add an `ANTHROPIC_API_KEY`.
+
+Run the unit tests (scoring engine, OSM attribute derivation, choice learning) with `npm test`.
 
 ## What's implemented
 
-- **Location setup:** current-location detection (browser geolocation), Home/Hotel/Custom presets, location-familiarity preference
+- **Location setup:** current-location detection (high-accuracy browser geolocation with an honest accuracy readout — laptops have no GPS, so it also suggests the search fallback), real saved places (set Home once, save any searched location under a name, reuse as start or destination), postal-code/building-name search for start and destination (OneMap for Singapore, OpenStreetMap Nominatim elsewhere, no keys), location-familiarity preference
 - **Create run:** distance (fixed options + custom) and route type (loop / point-to-point)
 - **Preferences:** all fixed dropdowns/multi-select (terrain, environment, traffic, safety, scenery, hydration, toilet, shade, timing) — no free text, converted into route scoring weights (`src/lib/scoring.ts`)
-- **AI route generation:** 3 differentiated route candidates per request (`src/lib/routing.ts`), each scored on safety/scenery/traffic/convenience/shade/weather-protection + an overall preference-weighted match score
+- **AI route generation:** 3 differentiated route candidates per request (`src/lib/routing.ts`), scored on real OSM corridor data (`src/lib/osmAttributes.ts`) — measured traffic exposure, park/water coverage, tree density, lighting, amenity density — plus safety/scenery/traffic/convenience/shade/weather-protection and an overall preference-weighted match score
+- **Point-to-point destinations:** optionally set an exact end point; both ORS directions and the synthetic generator honour it
 - **Route summary screen:** map preview, elevation/difficulty, all scores, hydration/toilet/shelter km-markers, weather warnings, AI explanation + recommendation
 - **Route selection → running mode:** GPS-based live tracking (`src/components/RunTracker.tsx`) with a "simulate run" fallback for demoing indoors, distance/pace/elapsed/progress
-- **Post-run analysis:** distance/pace/elevation summary, GPX export (Garmin/Apple Watch/Strava/Coros-compatible), and a naive but real preference-learning loop ("you usually prefer...") backed by `PreferenceProfile` tallies that update after every completed run
+- **Post-run analysis:** distance/pace/elevation summary, GPX export (Garmin/Apple Watch/Strava/Coros-compatible), and a two-signal preference-learning loop: form-input tallies plus behavioural chosen-vs-skipped score deltas ("when offered a choice, you tend to pick the shadier option") that update on every route selection
 - **Route history:** `/history` page listing past runs and their status
 
 ## What's simplified for the MVP
@@ -65,5 +71,5 @@ prisma/
 ## Roadmap (from the original spec, not yet built)
 
 - FIT/TCX export (GPX is done)
-- Adaptive/ML-based preference learning beyond simple tallies
 - Real-time weather-triggered re-routing mid-run
+- Real auth (schema already has a `User` model)

@@ -4,7 +4,7 @@ import { Footprints, History } from "lucide-react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Running Route Planner",
+  title: "Run Where?",
   description: "Your personal AI running guide — the best route for the run you want today.",
 };
 
@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="border-b border-border">
           <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
             <Link href="/" className="flex items-center gap-2 font-semibold">
-              <Footprints className="h-5 w-5 text-primary" /> AI Running Route Planner
+              <Footprints className="h-5 w-5 text-primary" /> Run Where?
             </Link>
             <Link href="/history" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
               <History className="h-4 w-4" /> History

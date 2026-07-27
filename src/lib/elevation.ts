@@ -20,6 +20,23 @@ export async function sampleElevationProfile(
 ): Promise<{ elevationsM: number[]; isEstimated: boolean }> {
   try {
     if (points.length === 0) throw new Error("no points");
+    // Open-Meteo's elevation endpoint first — same provider as our weather
+    // data, no key, and far more reliable than open-elevation.com.
+    try {
+      const capped = points.slice(0, 100); // API limit
+      const lats = capped.map(([, lat]) => lat.toFixed(5)).join(",");
+      const lngs = capped.map(([lng]) => lng.toFixed(5)).join(",");
+      const res = await fetch(
+        `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`,
+        { signal: AbortSignal.timeout(4000) }
+      );
+      if (!res.ok) throw new Error(`open-meteo elevation ${res.status}`);
+      const data = (await res.json()) as { elevation: number[] };
+      if (!data.elevation?.length) throw new Error("empty result");
+      return { elevationsM: data.elevation, isEstimated: false };
+    } catch {
+      // fall through to open-elevation
+    }
     const locations = points
       .map(([lng, lat]) => `${lat.toFixed(5)},${lng.toFixed(5)}`)
       .join("|");

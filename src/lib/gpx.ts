@@ -8,7 +8,7 @@ export function buildGpx(params: { name: string; coordinates: [number, number][]
     .join("\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="AI Running Route Planner" xmlns="http://www.topografix.com/GPX/1/1">
+<gpx version="1.1" creator="Run Where?" xmlns="http://www.topografix.com/GPX/1/1">
   <metadata>
     <name>${escapeXml(name)}</name>
     ${description ? `<desc>${escapeXml(description)}</desc>` : ""}

@@ -22,6 +22,20 @@ model User {
 
   runs        Run[]
   preferences PreferenceProfile?
+  savedPlaces SavedPlace[]
+}
+
+model SavedPlace {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String   // "Home", "Office", "East Coast Park", ...
+  address   String?
+  lat       Float
+  lng       Float
+  createdAt DateTime @default(now())
+
+  @@unique([userId, label])
 }
 
 model PreferenceProfile {
@@ -38,6 +52,10 @@ model PreferenceProfile {
   toiletCounts       Json     @default("{}")
   shadeCounts        Json     @default("{}")
   timingCounts       Json     @default("{}")
+  // Behavioural signals: accumulated score deltas of the route the user
+  // actually picked vs. the alternatives they skipped, per dimension.
+  // Shape: { shade: { sum: number, n: number }, scenery: {...}, ... }
+  choiceSignals      Json     @default("{}")
   totalRunsCompleted Int      @default(0)
   updatedAt          DateTime @updatedAt
 }
@@ -80,6 +98,7 @@ model RouteOption {
 
   name                String
   geojson             Json    // GeoJSON LineString feature
+  source              String  @default("synthetic") // "openrouteservice" (road-snapped) | "synthetic" (estimated shape)
   distanceKm          Float
   estimatedDurationMin Int
   routeType           String
